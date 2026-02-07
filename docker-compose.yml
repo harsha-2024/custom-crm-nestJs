@@ -1,0 +1,209 @@
+{
+  "version": "3.9",
+  "services": {
+    "postgres-auth": {
+      "image": "postgres:16-alpine",
+      "environment": {
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_PASSWORD": "postgres",
+        "POSTGRES_DB": "authdb"
+      },
+      "ports": [
+        "5433:5432"
+      ],
+      "volumes": [
+        "pgdata-auth:/var/lib/postgresql/data"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -U postgres"
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 5
+      }
+    },
+    "postgres-crm": {
+      "image": "postgres:16-alpine",
+      "environment": {
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_PASSWORD": "postgres",
+        "POSTGRES_DB": "crmdb"
+      },
+      "ports": [
+        "5434:5432"
+      ],
+      "volumes": [
+        "pgdata-crm:/var/lib/postgresql/data"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -U postgres"
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 5
+      }
+    },
+    "redis": {
+      "image": "redis:7-alpine",
+      "ports": [
+        "6379:6379"
+      ]
+    },
+    "redpanda": {
+      "image": "redpandadata/redpanda:latest",
+      "command": [
+        "redpanda",
+        "start",
+        "--overprovisioned",
+        "--smp",
+        "1",
+        "--memory",
+        "1G",
+        "--mode",
+        "dev",
+        "--kafka-addr",
+        "PLAINTEXT://0.0.0.0:9092",
+        "--advertise-kafka-addr",
+        "PLAINTEXT://redpanda:9092"
+      ],
+      "ports": [
+        "9092:9092"
+      ]
+    },
+    "redpanda-console": {
+      "image": "docker.redpanda.com/redpandadata/console:latest",
+      "environment": {
+        "KAFKA_BROKERS": "redpanda:9092"
+      },
+      "ports": [
+        "8081:8080"
+      ],
+      "depends_on": [
+        "redpanda"
+      ]
+    },
+    "opensearch": {
+      "image": "opensearchproject/opensearch:2.13.0",
+      "environment": {
+        "discovery.type": "single-node",
+        "DISABLE_INSTALL_DEMO_CONFIG": "true",
+        "DISABLE_SECURITY_PLUGIN": "true",
+        "OPENSEARCH_INITIAL_ADMIN_PASSWORD": "admin"
+      },
+      "ulimits": {
+        "memlock": {
+          "soft": -1,
+          "hard": -1
+        }
+      },
+      "ports": [
+        "9200:9200"
+      ]
+    },
+    "opensearch-dashboards": {
+      "image": "opensearchproject/opensearch-dashboards:2.13.0",
+      "environment": {
+        "OPENSEARCH_HOSTS": "http://opensearch:9200",
+        "DISABLE_SECURITY_DASHBOARDS_PLUGIN": "true"
+      },
+      "ports": [
+        "5601:5601"
+      ],
+      "depends_on": [
+        "opensearch"
+      ]
+    },
+    "auth-service": {
+      "build": {
+        "context": "./services/auth-service"
+      },
+      "env_file": [
+        "services/auth-service/.env"
+      ],
+      "ports": [
+        "3000:3000"
+      ],
+      "depends_on": [
+        "postgres-auth",
+        "redpanda"
+      ]
+    },
+    "crm-service": {
+      "build": {
+        "context": "./services/crm-service"
+      },
+      "env_file": [
+        "services/crm-service/.env"
+      ],
+      "ports": [
+        "3002:3000"
+      ],
+      "depends_on": [
+        "postgres-crm",
+        "redpanda"
+      ]
+    },
+    "search-service": {
+      "build": {
+        "context": "./services/search-service"
+      },
+      "env_file": [
+        "services/search-service/.env"
+      ],
+      "ports": [
+        "3003:3000"
+      ],
+      "depends_on": [
+        "redpanda",
+        "opensearch"
+      ]
+    },
+    "notification-service": {
+      "build": {
+        "context": "./services/notification-service"
+      },
+      "env_file": [
+        "services/notification-service/.env"
+      ],
+      "depends_on": [
+        "redpanda"
+      ]
+    },
+    "worker-service": {
+      "build": {
+        "context": "./services/worker-service"
+      },
+      "env_file": [
+        "services/worker-service/.env"
+      ],
+      "depends_on": [
+        "redis",
+        "redpanda"
+      ]
+    },
+    "api-gateway": {
+      "build": {
+        "context": "./services/api-gateway"
+      },
+      "env_file": [
+        "services/api-gateway/.env"
+      ],
+      "ports": [
+        "3001:3000"
+      ],
+      "depends_on": [
+        "auth-service",
+        "crm-service",
+        "search-service"
+      ]
+    }
+  },
+  "volumes": {
+    "pgdata-auth": {},
+    "pgdata-crm": {}
+  }
+}

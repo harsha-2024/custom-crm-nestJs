@@ -1,0 +1,53 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  domain    String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  contacts  Contact[]
+  deals     Deal[]
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  firstName String
+  lastName  String
+  phone     String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  companyId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Deal {
+  id          String   @id @default(cuid())
+  title       String
+  amount      Float    @default(0)
+  stage       String   @default("new")
+  company     Company? @relation(fields: [companyId], references: [id])
+  companyId   String?
+  ownerUserId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  activities  Activity[]
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  type      String
+  note      String?
+  deal      Deal?    @relation(fields: [dealId], references: [id])
+  dealId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
